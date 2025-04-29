@@ -1,0 +1,903 @@
+---
+title: "The Relationship between Historical Carbon Emissions and the UN Sustainable Development Goals"
+author: "Alexander Oweka"
+date: "22 April 2025"
+output:
+  html_document:
+    toc: true
+    toc_depth: '4'
+    df_print: paged
+  pdf_document:
+    toc: true
+    toc_depth: 4
+    fig_width: 7
+    fig_height: 6
+    fig_caption: true
+    latex_engine: xelatex
+  word_document:
+    toc: true
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project Summary
+
+This project aims to visually explore the relationship between historical carbon emissions from major industries and the United Nations Sustainable Development Goals (SDGs), particularly SDG 13: Climate Action.
+By leveraging the [Carbon Majors dataset](https://carbonmajors.org/), which provides historical data on the carbon emissions of the world's largest industrial emitters, we will analyze the distribution and trends of carbon emissions across various organizations, sectors and commodities.
+
+The increasing global temperatures, largely driven by anthropogenic sources [Friedlingstein et al., 2023], have cascading effects on humans and the environment [IPCC, 2021]. The primary objective is to create insightful visualisations that reveal the leading contributors to global carbon emissions and assess the progress (or lack thereof) in reducing emissions since the establishment of the SDGs in 2015.
+
+Through comparative and time-series visualisations, we will illustrate the impact of major industrial players on climate change, enabling a clearer understanding of the challenges in achieving sustainable development goals.
+This project will utilize tools such as bar charts, line charts, and other relevant graphs to present data effectively, emphasizing the importance of data visualisation in communicating complex environmental issues.
+
+Ultimately, this visualisation project seeks to provide a compelling visual narrative that underscores the urgency of addressing global warming and the critical role of industrial accountability in achieving a sustainable future.
+
+## Background Information and Summary of the Dataset
+
+Global warming, driven by anthropogenic carbon emissions, poses a significant threat to the planet and the achievement of the UN's Sustainable Development Goals (SDGs) [United Nations, 2015].
+
+The increasing concentration of greenhouse gases in the atmosphere has resulted in rising global temperatures, leading to severe consequences such as extreme weather events, sea-level rise, and ecosystem disruption [WMO, 2023; NOAA Climate.gov, 2023]. Industrial activities, particularly those related to fossil fuel extraction and combustion, are major contributors to these emissions [IEA, 2024; United Nations Environment Programme, 2021].
+
+This project utilizes the Carbon Majors dataset, which provides historical data on the carbon emissions of the world's largest industrial emitters. This dataset is crucial for understanding the historical patterns of carbon emissions and identifying the key sectors and commodities responsible for the majority of these emissions.
+The dataset allows us to explore trends over time and assess the impact of industrial activities on climate change.
+
+To effectively analyze this data, we will address the following research questions:
+
+### Research Questions
+
+1. How can we visually represent the distribution of carbon emissions across different industrial sectors, and what insights does this reveal about the sectors' relative contributions to global warming?
+    - This question aims to identify the primary industrial contributors to carbon emissions. Visualizing this distribution (eg., using bar charts) will provide a clear understanding of which sectors are most responsible and where mitigation efforts should be focused. It directly addresses the need to pinpoint sources of emissions, a critical step in addressing climate change.
+2. Using time-series visualisations, how have carbon emissions from different commodities changed since the establishment of the SDGs in 2015, and what trends can be observed?
+    - This question investigates the temporal trends in carbon emissions following the adoption of the SDGs. Time-series visualisations (e.g., line charts) will reveal whether emissions have increased, decreased, or remained stable. This analysis is crucial for evaluating the effectiveness of global efforts to reduce emissions and achieve SDG 13.
+3. What comparative visualisations can effectively illustrate the commodities with the highest and lowest carbon emissions, and how do these comparisons relate to the challenges of achieving SDG 13 (Climate Action)?
+    - This question focuses on highlighting the extremes in commodity emissions. Comparative visualisations (e.g., treemaps) will clearly show the disparities and emphasize the urgency of addressing the highest emitters. Linking these comparisons to SDG 13 will demonstrate the direct impact of industrial emissions on climate action goals.
+4. Who are the largest contributors to global emissions by ownership (parent) type?
+    - This question allows us to explore:
+        - How emissions responsibility is distributed across different types of entities (state owned, investor owned, nation state)
+        - Which specific entities have the largest impact
+
+## Methods
+
+The analysis will be conducted using R, a powerful programming language for statistical computing and data visualisation. The following packages will be utilized:
+
+- `tidyverse`: A collection of R packages designed for data science, including `ggplot2`, `dplyr`, `tidyr`, etc.
+- `ggplot2`: For creating high-quality visualisations.
+- `stringr`: For string manipulation and regular expressions.
+- `scales`: For formatting axis labels and scales in visualisations.
+- `treemapify`: For creating treemaps to visualise hierarchical data.
+
+The variables of interest include:
+
+- `parent_entity`: This is the name of the parent entity (e.g., company or organization) responsible for the emissions.
+- `parent_type`: The type of parent_entity. Can be one of: investor-owned company, state-owned entity, nation state.
+- `commodity`: This is the specific commodity associated with the emissions (e.g., oil, coal, natural gas).
+- `year`: This is the year in which the emissions were recorded.
+- `total_emissions_MtCO2e`: This is the total emissions in million tonnes of CO2 equivalent.
+
+### Data Preparation
+
+```{r load dataset, cache=TRUE, message=FALSE, warning=FALSE}
+# load dataset
+emissions <- read.csv("Emissions.csv")
+
+# load packages
+library(tidyverse)
+library(treemapify)
+```
+
+### Descriptive Analysis
+
+```{r inspect dataset}
+# Check the structure of the dataset
+summary(emissions)
+
+# Check for missing values
+colSums(is.na(emissions))
+
+# Check for the different commodities
+distinct(emissions, commodity)
+
+# Check for the different parent entities
+distinct(emissions, parent_entity)
+
+# Check for the different parent types
+distinct(emissions, parent_type)
+```
+The dataset contains no missing values, and the variables are well-defined.
+
+The `commodity` variable specifies the specific commodity associated with the emissions (e.g., oil, coal, natural gas).
+There are a total of 9 distinct commodities in the dataset. However, we can further categorize them into broader categories for analysis. For example, we can group "Sub-Bituminous Coal" and all other forms of coal under "coal," while "Oil & NGL (natural gas liquids)" and "Natural Gas" can be treated as a separate category: Hydrocarbons.
+We will need to add another variable, `commodity_category`, to categorize the commodities into broader categories for analysis.
+
+The `parent_entity` variable specifies the name of the parent entity (e.g., company or organization) responsible for the emissions.
+There are a total of 122 distinct organizations in the dataset.
+
+The `parent_type` variable tells us the type of entity the parent entity is. There are only 3 parent types present in the dataset: State-owned, Investor-owned and Nation State.
+
+### Data Wrangling
+
+Before we can analyze the data, we need to perform some data wrangling to clean and refine the dataset for analysis. This includes:
+
+- Adding a new variable, `commodity_category`, to categorize the commodities into broader categories for analysis.
+- Aggregating the total emissions by commodity across all years.
+- Aggregating the total emissions by commodity category across all years.
+
+```{r data wrangling, cache=TRUE}
+# Add commodity_category variable to dataset
+emissions_data <- emissions %>%
+  mutate(
+    # Create broader commodity categories
+    commodity_category = case_when(
+      str_detect(commodity, "Coal") ~ "Coal",
+      commodity %in% c("Oil & NGL", "Natural Gas") ~ "Hydrocarbons",
+      commodity == "Cement" ~ "Cement"
+    )
+  )
+
+# Aggregate total emissions by commodity across all years  
+sector_emissions <- emissions %>%
+  group_by(commodity) %>%
+  summarise(total_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE)) %>%
+  arrange(desc(total_emissions)) %>%
+  mutate(percentage = round((total_emissions / sum(total_emissions)) * 100, 2))
+
+# Aggregate total emissions by commodity_category across all years  
+sector_emissions_category <- emissions_data %>%
+  group_by(commodity_category) %>%
+  summarise(total_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE)) %>%
+  arrange(desc(total_emissions)) %>%
+  mutate(percentage = round((total_emissions / sum(total_emissions)) * 100, 2))
+```
+
+## Results
+
+### Research Question 1
+
+How can we visually represent the distribution of carbon emissions across different industrial sectors, and what insights does this reveal about the sectors' relative contributions to global warming?
+
+To answer this question, we will create horizontal bar charts to visualise the distribution of carbon emissions across different industrial sectors.
+Bar charts are great for comparing the total emissions from different sectors, as they provide a clear and concise representation of the data.
+
+#### Analysis
+
+```{r rq1 chart, cache=TRUE}
+# Create a bar chart showing carbon emissions by commodity category
+rq1_commodity_cat <- ggplot(sector_emissions_category, aes(x = reorder(commodity_category, total_emissions), y = total_emissions)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.2,
+    size = 3,
+    ) + # Add percentage value for each bar
+  coord_flip() + # Flip coordinates to create horizontal bar plot
+  scale_y_continuous(
+    labels = scales::comma, # Format axis
+    expand = expansion(mult = c(0, 0.2)) # Add 20% extra space on the upper end
+    ) +
+  labs(
+    title = "Total Carbon Emissions by Industrial Sector Category",
+    subtitle = "Based on Sample Data (All Years)",
+    x = "Category",
+    y = "Total Emissions (Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.major.y = element_blank(), # Remove horizontal grid lines
+    panel.grid.minor.y = element_blank(), # Remove horizontal grid lines
+  )
+print(rq1_commodity_cat)
+
+# Create a bar chart showing carbon emissions by commodity
+rq1_commodity <- ggplot(sector_emissions, aes(x = reorder(commodity, total_emissions), y = total_emissions)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.2,
+    size = 3,
+    ) + 
+  coord_flip() + 
+  scale_y_continuous(
+    labels = scales::comma, 
+    expand = expansion(mult = c(0, 0.2))
+    ) +
+  labs(
+    title = "Total Carbon Emissions by Commodity",
+    subtitle = "Based on Sample Data (All Years)",
+    x = "Commodity",
+    y = "Total Emissions (Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+  )
+print(rq1_commodity)
+
+# Aggregate total emissions by hydrocarbon category across all years  
+sector_emissions_hydrocarbon <- emissions_data %>%
+  filter(commodity_category == 'Hydrocarbons') %>%
+  group_by(commodity) %>%
+  summarise(total_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE)) %>%
+  arrange(desc(total_emissions)) %>%
+  mutate(percentage = round((total_emissions / sum(total_emissions)) * 100, 2))
+
+# Create a bar chart showing carbon emissions by hydrocarbon type
+rq1_hydrocarbon <- ggplot(sector_emissions_hydrocarbon, aes(x = reorder(commodity, total_emissions), y = total_emissions)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.2,
+    size = 3,
+    ) + 
+  coord_flip() + 
+  scale_y_continuous(
+    labels = scales::comma, 
+    expand = expansion(mult = c(0, 0.2))
+    ) +
+  labs(
+    title = "Total Carbon Emissions by Hydrocarbon Type",
+    subtitle = "Based on Sample Data (All Years)",
+    x = "Commodity",
+    y = "Total Emissions (Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+  )
+print(rq1_hydrocarbon)
+
+# Aggregate total emissions by coal category across all years  
+sector_emissions_coal <- emissions_data %>%
+  filter(commodity_category == 'Coal') %>%
+  group_by(commodity) %>%
+  summarise(total_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE)) %>%
+  arrange(desc(total_emissions)) %>%
+  mutate(percentage = round((total_emissions / sum(total_emissions)) * 100, 2))
+
+# Create a bar chart showing carbon emissions by coal type
+rq1_coal <- ggplot(sector_emissions_coal, aes(x = reorder(commodity, total_emissions), y = total_emissions)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.2,
+    size = 3,
+    ) + 
+  coord_flip() + 
+  scale_y_continuous(
+    labels = scales::comma, 
+    expand = expansion(mult = c(0, 0.2))
+    ) +
+  labs(
+    title = "Total Carbon Emissions by Coal Type",
+    subtitle = "Based on Sample Data (All Years)",
+    x = "Commodity",
+    y = "Total Emissions (Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+  )
+print(rq1_coal)
+```
+
+#### Insights
+
+##### Overall Carbon Emissions Distribution
+
+- Hydrocarbons represent the largest source of carbon emissions (55.4% of total)
+- Coal follows as the second-largest contributor (42.51% of total)
+- The top 3 commodities with the highest emissions are Oil & NGL (37.17%), Bituminous Coal (23.28%), and Natural Gas (18.24%).
+
+##### Hydrocarbon Emissions Breakdown
+
+- Within the Hydrocarbons category, Oil & Natural Gas Liquids (NGL) are the dominant contributors
+- Oil & NGL emissions (67.08%) are twice as high as Natural Gas emissions (32.92%).
+
+##### Coal Emissions Breakdown
+
+- Bituminous Coal contributes the most emissions within the Coal category at 54.76%
+- Followed by Metallurgical Coal (14.5%), Sub-Bituminous Coal (8.24%), Anthracite Coal (7.86%), Thermal Coal (7.57%), and Lignite Coal (7.07%)
+- Bituminous Coal emissions are 3.8 times higher than Metallurgical Coal emissions
+- Metallurgical Coal emissions are 1.8 times higher than Sub-Bituminous Coal emissions
+
+##### Cement Emissions
+
+- Despite being the third category, Cement's contribution is relatively minor at just 2.09% of total emissions
+
+### Research Question 2
+
+Using time-series visualisations, how have carbon emissions from different commodities changed since the establishment of the SDGs in 2015, and what trends can be observed?
+
+To answer this question, we will create line charts to visualise the trends in carbon emissions from different commodities since 2015.
+
+We will focus on the years 2005 to 2022, as this period provides a comprehensive view of emissions trends before and after the establishment of the SDGs in 2015.
+2005 is 10 years before the SDGs were established, and 2022 is the most recent year in the dataset.
+
+We use line charts to show the trends over time, as they are effective for displaying changes in data points across a continuous range (years).
+
+#### Analysis
+
+```{r rq2 chart, cache=TRUE}
+# Filter data for years >= 2005 and aggregate by commodity category
+sdg_trends_commodity_cat <- emissions_data %>%
+  filter(year >= 2005) %>%
+  group_by(year, commodity_category) %>% # Group by year & commodity category
+  summarise(yearly_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE), .groups = "drop")
+
+# Create a line chart showing trends for each commodity category
+rq2_commodity_cat <- ggplot(sdg_trends_commodity_cat, aes(x = year,
+                                               y = yearly_emissions,
+                                               group = commodity_category)) +
+  geom_line(color = 'lightblue', linewidth = 1) +
+  geom_vline(xintercept = 2015, linetype = "dashed", color = "darkgray") + # add vertical line
+  geom_text(data =
+              data.frame(
+              x = rep(2015.5,
+                      length(unique(sdg_trends_commodity_cat$commodity_category))),
+              y = rep(Inf, length(unique(sdg_trends_commodity_cat$commodity_category))),
+              commodity_category = unique(sdg_trends_commodity_cat$commodity_category)), # Create annotation data for all commodity categories
+            aes(x = x, y = y, label = "SDG"),
+            hjust = 0,
+            vjust = 1,
+            color = "darkgray",
+            size = 3,
+            inherit.aes = FALSE) + # add vertical line label
+  facet_wrap(~ commodity_category, scales = "free_y") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Carbon Emission Trends by Commodity Category (2005 - 2022)",
+    x = "Year",
+    y = "Yearly Emissions (Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "none",
+    panel.grid.major.x = element_blank(), # Remove vertical grid lines
+    panel.grid.minor.x = element_blank(), # Remove vertical grid lines
+  )
+
+print(rq2_commodity_cat)
+
+# Filter data for years >= 2005 and aggregate by commodity
+sdg_trends_commodity <- emissions_data %>%
+  filter(year >= 2005) %>%
+  group_by(year, commodity) %>%
+  summarise(yearly_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE), .groups = "drop")
+
+# Create a line chart showing trends for each commodity
+rq2_commodity <- ggplot(sdg_trends_commodity, aes(x = year,
+                                            y = yearly_emissions)) +
+  geom_line(color = 'lightblue', linewidth = 1) +
+  geom_vline(xintercept = 2015, linetype = "dashed", color = "darkgray") +
+  geom_text(data = data.frame(x = 2015.5,
+                              y = Inf,
+                              commodity_category = unique(sdg_trends_commodity_cat$commodity_category)[1]), 
+            aes(x = x, y = y, label = "SDG"),
+            hjust = 0,
+            vjust = 1,
+            color = "darkgray",
+            size = 3,
+            inherit.aes = FALSE) +
+  facet_wrap(~ commodity, scales = "free_y") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Carbon Emission Trends by Commodity (2005 - 2022)",
+    x = "Year",
+    y = "Yearly Emissions (Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "none",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+  )
+
+print(rq2_commodity)
+```
+
+#### Insights
+
+The line charts show the trends in carbon emissions from different commodities between 2005 - 2022. The vertical dashed line indicates the year 2015 when the SDGs (Sustainable Development Goals) were established.
+
+##### Cement
+
+- Cement emissions rose from 2005 but began declining after 2015.
+- Unlike hydrocarbons and coal, cement emissions showed a spike during 2020 (COVID-19 pandemic) before beginning to trend downward.
+
+##### Coal
+
+- Coal emissions generally increased since 2005, with variations among coal types.
+- Thermal coal emissions remained relatively stable after 2005 but began trending downward post-2015.
+- Emissions from other coal types (Anthracite, Bituminous, Lignite, and Metallurgical) showed slight dips post-2015 before rising again.
+- Lignite & Sub-Bituminous coal emissions declined significantly during 2020, but have since increased.
+
+##### Hydrocarbons
+
+- Emissions from hydrocarbons have been rising since 2005, with significant increases from both oil & NGL and natural gas.
+- Post-2015, emissions from oil & NGL began to stabilise and trend downward, while natural gas emissions continued to increase
+- Following a sharp drop during 2020, emissions from oil & NGL have resumed an upward trend.
+
+### Research Question 3
+
+What comparative visualisations can effectively illustrate the commodities with the highest and lowest carbon emissions, and how do these comparisons relate to the challenges of achieving SDG 13 (Climate Action)?
+
+To answer this question, we will create treemaps to visualise the commodities with the highest and lowest carbon emissions.
+We use treemaps to show the proportions of emissions from different commodities and commodity categories, as they are effective for displaying hierarchical data.
+
+#### Analysis
+
+```{r rq3 chart, cache=TRUE}
+# Create a treemap showing the proportion of emissions by commodity category
+rq3_commodity_cat <- ggplot(sector_emissions_category,
+                             aes(area = total_emissions,
+                                 fill = total_emissions,
+                                 label = paste0(commodity_category,
+                                                "\n", 
+                                               scales::comma(round(total_emissions, 0)), 
+                                               "\n(",
+                                               percentage,
+                                               "%)"))) +
+  geom_treemap() +
+  geom_treemap_text(colour = "white",
+                    place = "centre",
+                    size = 12,
+                    min.size = 4,
+                    grow = TRUE,
+                    reflow = TRUE
+                    ) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", labels = scales::comma) +
+  labs(
+    title = "Proportion of Total Carbon Emissions by Commodity Category",
+    subtitle = "Based on Sample Data (All Years) - Area & Color Intensity show Emissions",
+    fill = "Total Emissions\n(Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "right"
+   )
+
+print(rq3_commodity_cat)
+
+# Create a treemap showing the proportion of emissions by commodity
+rq3_commodity <- ggplot(sector_emissions,
+                           aes(area = total_emissions,
+                               fill = total_emissions,
+                               label = paste0(commodity,
+                                              "\n",
+                                              scales::comma(round(total_emissions, 0)),
+                                              "\n(",
+                                              percentage,
+                                              "%)"))) +
+  geom_treemap() +
+  geom_treemap_text(colour = "white",
+                    place = "centre",
+                    size = 14,
+                    grow = TRUE,
+                    reflow = TRUE) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", labels = scales::comma) +
+  labs(
+    title = "Proportion of Total Carbon Emissions by Commodity",
+    subtitle = "Based on Sample Data (All Years) - Area & Color Intensity show Emissions",
+    fill = "Total Emissions\n(Mt CO2e)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "right"
+   )
+
+print(rq3_commodity)
+```
+
+#### Insights
+
+##### Emission Proportions by Category
+
+- The treemaps clearly illustrate the disparities in carbon emissions across different commodity categories
+- Hydrocarbons emerge as the largest contributor to carbon emissions
+- Coal ranks as the second-largest source
+- Cement shows the smallest contribution of the three categories
+
+##### Emission Proportions by Specific Commodity
+
+- Oil & NGL stands as the single largest source of emissions among all commodities
+- Bituminous coal represents the second-largest contributor
+- Natural gas ranks third in total emissions
+
+##### Implications for Climate Action
+
+- The treemaps highlight the critical contribution of hydrocarbons and coal to overall carbon emissions
+- These findings are particularly relevant for achieving SDG 13 (Climate Action)
+- Effective climate action strategies should prioritize reducing emissions from hydrocarbon and coal sources to make meaningful progress toward SDG 13
+
+### Research Question 4
+
+Who are the largest contributors to global emissions by ownership type?
+
+We will create lollipop charts to visualise the largest contributors to global emissions by ownership type.
+We use lollipop charts to show the emissions from different entities, as they are effective for displaying categorical data with a continuous variable.
+
+#### Analysis
+
+```{r rq4 bonus chart, cache=TRUE}
+# Filter for top 10 entities across all categories
+emissions_top10 <- emissions_data %>%
+  group_by(parent_entity, parent_type) %>%
+  summarise(total_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE), .groups = "drop") %>%
+  slice_max(order_by = total_emissions, n = 10) %>%
+  mutate(percentage = (total_emissions / sum(total_emissions)) * 100) %>%
+  mutate(percentage = round(percentage, 2))
+
+# Create a lollipop chart showing total emissions by entity
+rq4_emissions <- ggplot(emissions_top10,
+                            aes(x = reorder(parent_entity, total_emissions),
+                            y = total_emissions,
+                            color = parent_type)) +
+  geom_segment(aes(xend = parent_entity, yend = 0),linewidth = 1.2, alpha = 0.7) +
+  geom_point(size = 4) +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.3,
+    size = 3,
+    show.legend = FALSE # fix legend bug
+    ) + 
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1/1000, suffix = "k"), 
+    expand = expansion(mult = c(0, 0.3))
+    ) +
+  coord_flip() +
+  scale_color_manual(values = c("State-owned Entity" = "#4e79a7",
+                               "Nation State" = "#f28e2b",
+                               "Investor-owned Company" = "#59a14f")) +
+  labs(
+    title = "Largest Contributors to Global Emissions",
+    subtitle = "By ownership (parent) type",
+    y = "Total Emissions (Mt CO2e, thousands)",
+    x = NULL,
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "top"
+  )
+print(rq4_emissions)
+
+# Aggregate emissions by parent_entity and commodity category
+entity_by_commodity <- emissions_data %>%
+  group_by(parent_entity, parent_type, commodity_category) %>%
+  summarise(total_emissions = sum(total_emissions_MtCO2e, na.rm = TRUE), .groups = "drop")
+
+# Filter for top 10 entities in Hydrocarbons category
+hydrocarbon_top10 <- entity_by_commodity %>%
+  filter(commodity_category == "Hydrocarbons") %>%
+  slice_max(order_by = total_emissions, n = 10) %>%
+  mutate(percentage = (total_emissions / sum(total_emissions)) * 100) %>%
+  mutate(percentage = round(percentage, 2))
+
+# Create a lollipop chart showing hydrocarbon emissions by entity
+rq4_hydrocarbon <- ggplot(hydrocarbon_top10,
+                            aes(x = reorder(parent_entity, total_emissions),
+                            y = total_emissions,
+                            color = parent_type)) +
+  geom_segment(aes(xend = parent_entity, yend = 0), linewidth = 1.2, alpha = 0.7) +
+  geom_point(size = 4) +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.3,
+    size = 3,
+    show.legend = FALSE
+    ) + 
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1/1000, suffix = "k"), 
+    expand = expansion(mult = c(0, 0.3))
+    ) +
+  coord_flip() +
+  scale_color_manual(values = c("State-owned Entity" = "#4e79a7",
+                               "Nation State" = "#f28e2b",
+                               "Investor-owned Company" = "#59a14f")) +
+  labs(
+    title = "Largest Hydrocarbon Contributors to Global Emissions",
+    subtitle = "By ownership (parent) type",
+    y = "Total Emissions (Mt CO2e, thousands)",
+    x = NULL,
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "top"
+  )
+print(rq4_hydrocarbon)
+
+# Filter for top 10 entities in Coal category
+coal_top10 <- entity_by_commodity %>%
+  filter(commodity_category == "Coal") %>%
+  slice_max(order_by = total_emissions, n = 10) %>%
+  mutate(percentage = (total_emissions / sum(total_emissions)) * 100) %>%
+  mutate(percentage = round(percentage, 2))
+
+# Create a lollipop chart showing coal emissions by entity
+rq4_coal <- ggplot(coal_top10,
+                            aes(x = reorder(parent_entity, total_emissions),
+                            y = total_emissions,
+                            color = parent_type)) +
+  geom_segment(aes(xend = parent_entity, yend = 0), linewidth = 1.2, alpha = 0.7) +
+  geom_point(size = 4) +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.3,
+    size = 3,
+    show.legend = FALSE
+    ) + 
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1/1000, suffix = "k"), 
+    expand = expansion(mult = c(0, 0.3))
+    ) +
+  coord_flip() +
+  scale_color_manual(values = c("State-owned Entity" = "#4e79a7",
+                               "Nation State" = "#f28e2b",
+                               "Investor-owned Company" = "#59a14f")) +
+  labs(
+    title = "Largest Coal Contributors to Global Emissions",
+    subtitle = "By ownership (parent) type",
+    y = "Total Emissions (Mt CO2e, thousands)",
+    x = NULL,
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "top"
+  )
+
+print(rq4_coal)
+
+# Filter for top 10 Entities in Cement category
+cement_top10 <- entity_by_commodity %>%
+  filter(commodity_category == "Cement") %>%
+  slice_max(order_by = total_emissions, n = 10) %>%
+  mutate(percentage = round((total_emissions / sum(total_emissions)) * 100, 2))
+
+# Create a lollipop chart showing coal emissions by entity
+rq4_cement <- ggplot(cement_top10,
+                            aes(x = reorder(parent_entity, total_emissions),
+                            y = total_emissions,
+                            color = parent_type)) +
+  geom_segment(aes(xend = parent_entity, yend = 0), linewidth = 1.2, alpha = 0.7) +
+  geom_point(size = 4) +
+  geom_text(
+    aes(label = paste0(percentage, "%")),
+    hjust = -0.3,
+    size = 3,
+    show.legend = FALSE
+    ) +
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1/1000, suffix = "k"), 
+    expand = expansion(mult = c(0, 0.3))
+    ) +
+  coord_flip() +
+  scale_color_manual(values = c("State-owned Entity" = "#4e79a7",
+                               "Nation State" = "#f28e2b",
+                               "Investor-owned Company" = "#59a14f")) +
+  labs(
+    title = "Largest Cement Contributors to Global Emissions",
+    subtitle = "By ownership (parent) type",
+    y = "Total Emissions (Mt CO2e, thousands)",
+    x = NULL,
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "top"
+  )
+
+print(rq4_cement)
+```
+
+#### Insights
+
+##### Overview:
+
+- The lollipop chart visualises the top 10 emitting entities for hydrocarbons, coal, and cement
+- There are 4 investor-owned companies, 4 state-owned entities, and 2 nation states in the top 10
+- The top 3 are a mix of state-owned and nation state entities:
+
+  - China (Coal) (34.57%)
+  - Former Soviet Union (16.89%)
+  - Saudi Aramco (8.61%)
+
+- China (Coal) emissions is 2x larger than the next entity: Former Soviet Union
+- Former Soviet Union emissions is, in turn, 2x larger than Saudi Aramco.
+
+##### Hydrocarbon Emissions by Entity:
+
+- The top 10 entities account for a significant portion of total hydrocarbon emissions
+- There are 5 investor-owned companies, 4 state-owned entities, and 1 nation state in the top 10
+- Emissions are almost evenly split among the entities, with the gap between the top 5 being less than 4%
+- Leading contributors (by percentage of top 10 total):
+
+  - Saudi Aramco (14.89%)
+  - Former Soviet Union (13.53%)
+  - Chevron (12.26%)
+  - ExxonMobil (11.60%)
+  - Gazprom (10.96%)
+  - National Iranian Oil Co. (9.33%)
+  - BP (8.98%)
+  - Shell (8.56%)
+  - Pemex (5.52%)
+  - ConocoPhillips (4.37%)
+
+##### Coal Emissions by Entity:
+
+- This is mostly dominated by nation state entities.
+- There are 5 nation states, 3 investor-owned companies, and 2 state-owned entities in the top 10
+- China (Coal) dominates coal emissions with 55.71% of the category total
+- Other significant contributors include:
+
+  - Former Soviet Union (14.62%)
+  - Coal India (5.92%)
+  - Poland (5.79%)
+  - Russian Federation (4.72%)
+  - British Coal Corporation (3.98%)
+  - Peabody Coal Group (3.57%)
+  - CONSOL Energy (2.07%)
+  - Czechoslovakia (1.94%)
+  - BHP (1.67%)
+
+##### Cement Emissions by Entity:
+
+- Only 6 entities are included in the dataset for cement emissions
+- 5 of the companies are investor-owned, and 1 is a nation state entity
+- China (Cement) is the dominant contributor at 78.03% of cement emissions
+- Other contributors:
+
+  - Holcim Group (10.69%)
+  - Heidelberg Materials (5.67%)
+  - Cemex (2.92%)
+  - Taiheiyo Cement (1.95%)
+  - CRH (0.73%)
+
+## Conclusion and Discussion of Findings
+
+### Summary of Key Findings
+
+Our analysis has produced several important insights regarding the distribution and trends of carbon emissions across different industrial sectors, commodities, and entities.
+
+#### Distribution of Carbon Emissions Across Industrial Sectors
+
+The analysis reveals a clear hierarchy in terms of emission contributions:
+
+- **Hydrocarbons** are the largest contributor, accounting for 55.40% of total emissions analyzed
+- **Coal** follows as the second major contributor at 42.51% of total emissions
+- **Cement** has a comparatively minimal contribution at just 2.09% of total emissions
+
+Within these categories:
+
+- Oil & NGL dominate the hydrocarbon emissions, with approximately twice the emissions of Natural Gas
+- Bituminous Coal is the primary coal contributor, with emissions 3.8 times higher than Metallurgical Coal, which in turn has emissions 1.8 times as high as Sub-Bituminous Coal
+- China alone accounts for over three-quarters (78.03%) of all cement emissions captured in the dataset
+
+#### Temporal Trends in Carbon Emissions
+
+The time-series analysis provided valuable insights into emission patterns before and after the 2015 establishment of the SDGs:
+
+- **Hydrocarbons**: Emissions showed a general upward trend since 2005, with a notable divergence after 2015:
+  - Oil & NGL emissions began to stabilise and trend downward post-2015, before experiencing a significant drop in 2020, followed by a resumption of upward trends
+  - Natural gas emissions continued to rise even after 2015
+
+- **Coal**: Different types of coal showed varied patterns:
+  - Thermal coal remained relatively stable post-2005 but began trending downward after 2015
+  - Other coal types (Anthracite, Bituminous, Lignite, Metallurgical, and Sub-Bituminous) experienced slight dips in 2015 before rising again
+  - Lignite & Sub-Bituminous coal emissions were particularly impacted in 2020 but subsequently recovered and increased
+
+- **Cement**: Emissions rose from 2005 but began decreasing after 2015, with an unusual spike in 2020 before resuming a downward trend
+
+#### Entity-Level Contributors to Emissions
+
+Our entity-level analysis revealed significant concentration of emissions among a small number of organizations:
+
+- **Hydrocarbon Emissions**: The top 10 emitting entities show a relatively distributed pattern, with Saudi Aramco (14.89%) and Former Soviet Union (13.53%) leading, followed by several major oil companies like Chevron, ExxonMobil, and Gazprom, each contributing between 10-13% of the top 10 total
+
+- **Coal Emissions**: Shows extreme concentration with China (Coal) alone accounting for 55.71% of total coal emissions, followed by the Former Soviet Union at 14.62%, with all other entities contributing less than 6% each
+
+- **Cement Emissions**: Demonstrates the highest concentration, with China (Cement) responsible for 78.03% of cement emissions, followed by Holcim Group at 10.69%, with all other entities contributing less than 6% each
+
+### Discussion in Relation to Research Questions
+
+#### RQ1: Distribution of Carbon Emissions Across Industrial Sectors
+
+Our visualisations successfully identified hydrocarbons and coal as the primary industrial contributors to carbon emissions. The treemaps and percentage breakdowns provide clear evidence that these two sectors combined account for nearly 98% of the emissions analyzed. This finding directly addresses the need to pinpoint the main sources of emissions and suggests that mitigation efforts should be heavily focused on hydrocarbon and coal consumption.
+
+#### RQ2: Temporal Changes in Carbon Emissions Since SDG Establishment
+
+The time-series analysis revealed mixed results regarding emission changes since the 2015 SDG establishment:
+
+- Some positive indicators include the downward trend of oil & NGL emissions and thermal coal after 2015, suggesting potential progress
+- However, natural gas emissions continued to rise, and several coal types saw post-2015 increases after initial dips
+- In 2020, there were significant disruptions across all sectors, making it difficult to assess longer-term trends in some cases
+
+These findings suggest that while some progress may be occurring in certain areas, overall emission reductions are not happening at the pace needed to meet SDG 13 objectives.
+
+#### RQ3: Commodities with Highest and Lowest Carbon Emissions
+
+Our comparative visualisations effectively illustrated the extreme disparities between emission sources:
+
+- Oil & NGL emerge as the single largest commodity contributor, followed by bituminous coal and natural gas
+- The vast difference between these high-emitting commodities and lower contributors like cement highlights the importance of prioritizing emission reductions in the highest-contributing sectors
+- These findings directly relate to the challenges of achieving SDG 13, as they demonstrate that meaningful climate action must address these high-emission commodities as a priority
+
+#### RQ4: Largest Contributors by Ownership Type
+
+The entity-level analysis revealed significant concentration of emissions responsibility:
+
+- For both coal and cement, nation-state entities (particularly China) dominate emissions
+- For hydrocarbons, emissions are more distributed among both national oil companies (Saudi Aramco, National Iranian Oil Co.) and private multinational corporations (Chevron, ExxonMobil, BP, Shell)
+- Historical entities (Former Soviet Union) continue to account for significant historical emissions across categories
+
+This concentration of emissions among a relatively small number of entities suggests that targeted policies and actions focused on these key players could have disproportionately beneficial impacts.
+
+### Recommendations for Further Analysis
+
+Based on our findings, we recommend several directions for deeper analysis:
+
+1. **Geographical Analysis**: Explore regional and country-level emissions patterns to identify geographical hotspots beyond the entity-level analysis. This would help target regional climate policies more effectively.
+
+2. **Emission Intensity Analysis**: Investigate emissions per unit of production or economic output to determine which sectors and entities are most carbon-efficient or inefficient. This would provide insights into where technological improvements could yield the greatest benefits.
+
+3. **Policy Impact Assessment**: Conduct a detailed analysis of how specific climate policies and regulations have affected emission trends in different sectors and regions. This could help identify which policy approaches have been most effective.
+
+4. **Supply Chain Analysis**: Extend the analysis to include upstream and downstream emissions throughout supply chains to get a more comprehensive picture of total emission impacts across industrial networks.
+
+5. **Alternative Scenarios Modeling**: Develop forward-looking models that project emissions under different mitigation scenarios to assess potential pathways toward meeting climate goals.
+
+6. **Consumer-Based Analysis**: Investigate emissions from the perspective of end consumption rather than production to better understand how consumer behavior and demand patterns influence overall emissions.
+
+7. **Technology Adoption Analysis**: Examine how the adoption of greener technologies has influenced emission trends in different sectors and identify barriers to wider implementation.
+
+8. **Post-COVID Recovery Patterns**: Continue monitoring post-pandemic emission patterns to determine whether COVID-19 disruptions have led to any structural changes in emission trajectories.
+
+#### Implications for Climate Action and SDG 13
+
+Our findings have several important implications for global climate action efforts:
+
+1. **Targeted Interventions**: Climate action should prioritize the hydrocarbon and coal sectors, with particular emphasis on oil & NGL and bituminous coal.
+
+2. **Key Entity Engagement**: International climate initiatives should actively engage the top emitting entities identified in our analysis, as their actions will have disproportionate impacts on global emissions.
+
+3. **Regulation Effectiveness**: The mixed post-2015 trends suggest that SDG establishment alone is insufficient; stronger regulatory frameworks and accountability mechanisms are needed.
+
+4. **Transitional Planning**: The high dependence on fossil fuels highlighted in our analysis underscores the need for comprehensive transition planning to alternative energy sources.
+
+5. **Technology Investment**: Significant investment in clean technologies for the highest-emitting sectors is essential for meaningful progress toward SDG 13.
+
+In conclusion, our analysis provides a data-driven foundation for prioritizing climate action efforts. By focusing on the highest-emitting sectors, commodities, and entities identified in this study, policymakers and industry leaders can direct resources where they will have the greatest impact on reducing global carbon emissions and advancing progress toward SDG 13 goals.
+
+## References
+
+* Friedlingstein, P., O'Sullivan, M., Jones, M.W., Andrew, R.M., Gregor, L., Hauck, J., Le Quéré, C., Luijkx, I.T., Olsen, A., Peters, G.P. and Peters, W. (2022) 'Global carbon budget 2022', Earth System Science Data, 14(11), pp. 4811–4900.
+
+* IEA (2024) CO₂ emissions in 2023. Paris: International Energy Agency. Available at: https://www.iea.org/reports/co2-emissions-in-2023 (Accessed: 22 April 2025).
+
+* IPCC (2021) Climate change 2021: the physical science basis. Contribution of Working Group I to the Sixth Assessment Report of the Intergovernmental Panel on Climate Change, edited by V. Masson-Delmotte et al. Cambridge: Cambridge University Press. doi:10.1017/9781009157896.
+
+* NOAA Climate.gov (2023) Climate change: global sea level. Available at: https://www.climate.gov/news-features/understanding-climate/climate-change-global-sea-level (Accessed: 22 April 2025).
+
+* United Nations (2015) Transforming our world: the 2030 Agenda for Sustainable Development. Department of Economic and Social Affairs. Available at: https://sdgs.un.org/2030agenda (Accessed: 22 April 2025).
+
+* United Nations Environment Programme (2021) 2022 global status report for buildings and construction: towards a zero-emissions, efficient and resilient buildings and construction sector. Nairobi: UNEP.
+
+* World Meteorological Organization (WMO) (2023) State of the global climate 2023. WMO-No. 1347. Geneva: WMO. Available at: https://library.wmo.int/idurl/4/68835 (Accessed: 22 April 2025).
